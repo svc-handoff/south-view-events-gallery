@@ -220,8 +220,8 @@ research: split "is this appropriate?" into specific, checkable rules.
 
 * Note: We will make Charlene set this up (one time set up) with SouthView's google account
 
-- https://script.google.com/d/1czJlFd9LyINuWI_jMCLffQJR9GgOtjypv3bjQLR58-u8YJY2cfRUHrgn/edit?usp=sharing 
+- https://script.google.com/home/projects/1gBNBghQlEIAateXLMSzfpVEQllFgJgJSR-8w9D0ZRFcldxRVzGlimjzX/edit 
 
 ## Link to Drive Folder 
 
-- https://drive.google.com/drive/folders/1BIeSE5KeXMSVoSEl4DIJYvAFjS4JT1Ia?usp=sharing
+- https://drive.google.com/drive/folders/1kp9hplnuNVtsvZnVl_1hH5nKfhmrycF3 
