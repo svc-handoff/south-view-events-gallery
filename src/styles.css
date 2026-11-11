@@ -248,7 +248,7 @@ img { max-width: 100%; display: block; }
 .form label, .qr-controls label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; }
 .form em { font-weight: 400; color: #6b6b6b; }
 .form small { color: #6b6b6b; font-weight: 400; }
-select, textarea, input[type='file'], .pin-form input {
+select, textarea, input[type='file'] {
   font: 400 1rem var(--sans);
   padding: 10px 12px;
   border: 1px solid #cfc7c7;
@@ -300,8 +300,7 @@ select, textarea, input[type='file'], .pin-form input {
   cursor: pointer;
 }
 
-.pin-form { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
-.pin-form input { width: 160px; text-align: center; letter-spacing: 0.3em; }
+.google-signin-button { display: flex; justify-content: center; margin-top: 20px; min-height: 44px; }
 .error { color: var(--rose-dark); }
 .hint { color: #6b6b6b; font-size: 0.9rem; margin-top: 24px; }
 

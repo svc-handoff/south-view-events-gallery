@@ -2,7 +2,7 @@
 // rows in a Google Sheet and photos in a Drive folder. No API key: the script runs
 // as the Google account that deployed it.
 const API_URL = import.meta.env.VITE_APPS_SCRIPT_URL
-const PASSWORD_KEY = 'south-view-staff-password'
+const TOKEN_KEY = 'south-view-staff-token'
 
 // Google doesn't document a way to show Drive files in <img> tags. These are the two
 // URL formats that work today (the older uc?export=view links already broke). If
@@ -45,7 +45,7 @@ export async function listGallery() {
 }
 
 export async function listAll() {
-  const { submissions } = await post({ action: 'staffList', password: sessionStorage.getItem(PASSWORD_KEY) })
+  const { submissions } = await post({ action: 'staffList', idToken: sessionStorage.getItem(TOKEN_KEY) })
   return submissions.map(toRecord).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
 }
 
@@ -65,14 +65,14 @@ export async function addSubmission(record) {
 }
 
 export async function setStatus(id, status) {
-  await post({ action: 'setStatus', id, status, password: sessionStorage.getItem(PASSWORD_KEY) })
+  await post({ action: 'setStatus', id, status, idToken: sessionStorage.getItem(TOKEN_KEY) })
 }
 
 export async function checkAI(id) {
   const { aiCheck } = await post({
     action: 'checkAI',
     id,
-    password: sessionStorage.getItem(PASSWORD_KEY),
+    idToken: sessionStorage.getItem(TOKEN_KEY),
   })
   return aiCheck
 }
@@ -83,25 +83,29 @@ export async function listEvents() {
 }
 
 export async function addEvent(name, type = 'event', details = '') {
-  const { events } = await post({ action: 'addEvent', name, type, details, password: sessionStorage.getItem(PASSWORD_KEY) })
+  const { events } = await post({ action: 'addEvent', name, type, details, idToken: sessionStorage.getItem(TOKEN_KEY) })
   return events
 }
 
 export async function deleteEvent(id) {
-  const { events } = await post({ action: 'deleteEvent', id, password: sessionStorage.getItem(PASSWORD_KEY) })
+  const { events } = await post({ action: 'deleteEvent', id, idToken: sessionStorage.getItem(TOKEN_KEY) })
   return events
 }
 
-export async function unlockStaff(password) {
+// idToken is the credential Google Sign-In gives the browser. It's re-sent with every
+// staff action (like the password before it) rather than kept server-side, since Apps
+// Script web apps are stateless; it naturally expires after about an hour, at which
+// point the next action fails and the Staff page asks to sign in again.
+export async function unlockStaff(idToken) {
   try {
-    await post({ action: 'staffList', password })
+    await post({ action: 'staffList', idToken })
   } catch (err) {
-    if (err.code === 'bad_password') return false
+    if (err.code === 'unauthorized') return false
     throw err
   }
-  sessionStorage.setItem(PASSWORD_KEY, password)
+  sessionStorage.setItem(TOKEN_KEY, idToken)
   return true
 }
 
-export const isStaffUnlocked = () => Boolean(sessionStorage.getItem(PASSWORD_KEY))
-export const lockStaff = () => sessionStorage.removeItem(PASSWORD_KEY)
+export const isStaffUnlocked = () => Boolean(sessionStorage.getItem(TOKEN_KEY))
+export const lockStaff = () => sessionStorage.removeItem(TOKEN_KEY)

@@ -31,6 +31,7 @@ jobs:
       - run: npm run build
         env:
           VITE_APPS_SCRIPT_URL: ${{ vars.APPS_SCRIPT_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

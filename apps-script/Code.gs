@@ -64,8 +64,8 @@ function setup() {
   folder.createFile('setup check.txt', 'This file can be deleted.').setTrashed(true)
   console.log('Submissions will be saved to this Sheet: ' + ss.getUrl())
   console.log('Photos will be saved to "' + folder.getName() + '": ' + folder.getUrl())
-  if (!props.getProperty('STAFF_PASSWORD')) {
-    console.log('Next: add a STAFF_PASSWORD script property (Project Settings → Script properties).')
+  if (!props.getProperty('GOOGLE_CLIENT_ID') || !props.getProperty('STAFF_EMAILS')) {
+    console.log('Next: add GOOGLE_CLIENT_ID and STAFF_EMAILS script properties (Project Settings → Script properties).')
   }
 }
 
@@ -112,7 +112,7 @@ function doPost(e) {
     const body = JSON.parse(e.postData.contents)
     if (body.action === 'submit') return submit(body)
 
-    checkStaffPassword(body.password)
+    checkStaffAuth(body.idToken)
     if (body.action === 'staffList') return { submissions: readRows().filter((r) => r.fileId) }
     if (body.action === 'setStatus') return setStatus(String(body.id), body.status)
     if (body.action === 'addEvent') return addEvent(body.name, body.type, body.details)
@@ -358,18 +358,42 @@ function shortHash(text) {
   return (hash >>> 0).toString(36)
 }
 
-function checkStaffPassword(password) {
-  const expected = props.getProperty('STAFF_PASSWORD')
-  if (!expected) fail('No staff password is set up yet. Add STAFF_PASSWORD in the script properties.')
+// Staff sign in with Google instead of a password. The browser sends the ID token Google
+// Sign-In gave it; this checks that token is genuine and was issued for this app, then
+// checks the signed-in email against the STAFF_EMAILS allowlist.
+function checkStaffAuth(idToken) {
   const cache = CacheService.getScriptCache()
   const failures = Number(cache.get('failedLogins') || 0)
   if (failures >= MAX_FAILED_LOGINS) {
-    fail('Too many wrong passwords. Wait 15 minutes, or approve photos in the Google Sheet.', 'locked')
+    fail('Too many failed sign-ins. Wait 15 minutes, or approve photos in the Google Sheet.', 'locked')
   }
-  if (password !== expected) {
+  const allowed = String(props.getProperty('STAFF_EMAILS') || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+  if (!allowed.length) fail('No staff emails are set up yet. Add STAFF_EMAILS in the script properties.')
+  const email = verifyGoogleIdToken(idToken)
+  if (!email || allowed.indexOf(email.toLowerCase()) < 0) {
     cache.put('failedLogins', String(failures + 1), LOCKOUT_SECONDS)
-    fail('Wrong password.', 'bad_password')
+    fail('That Google account is not on the staff list.', 'unauthorized')
   }
+}
+
+// Verifies the ID token Google Sign-In gave the browser with Google's own tokeninfo
+// endpoint, and returns the signed-in email, or null if the token is missing, expired,
+// or wasn't issued for this app's GOOGLE_CLIENT_ID.
+function verifyGoogleIdToken(idToken) {
+  if (!idToken) return null
+  const clientId = props.getProperty('GOOGLE_CLIENT_ID')
+  if (!clientId) fail('No GOOGLE_CLIENT_ID script property is set up yet.')
+  const res = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken), {
+    muteHttpExceptions: true,
+  })
+  if (res.getResponseCode() !== 200) return null
+  const info = JSON.parse(res.getContentText())
+  if (info.aud !== clientId) return null
+  if (info.email_verified !== 'true' && info.email_verified !== true) return null
+  return info.email
 }
 
 // FOLDER_ID can be the folder's ID or its link copied from Drive's address bar.

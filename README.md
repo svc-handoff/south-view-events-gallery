@@ -48,8 +48,11 @@ owns the gallery. If that account is deleted, the gallery stops working.
    want everything kept.
 2. In the Sheet, open **Extensions → Apps Script**. Delete the starter code, paste in all
    of `apps-script/Code.gs`, and click **Save**.
-3. Open **Project Settings** (the gear icon) and under **Script properties** add:
-   - `STAFF_PASSWORD`: a passphrase staff will use on the Staff page.
+3. Set up Google Sign-In for staff (see **Setting up Google Sign-In** below), then open
+   **Project Settings** (the gear icon) and under **Script properties** add:
+   - `GOOGLE_CLIENT_ID`: the OAuth client ID from that setup.
+   - `STAFF_EMAILS`: a comma-separated list of staff Google accounts allowed to sign in,
+     for example `svc.handoff@gmail.com, someone@gmail.com`.
    - `FOLDER_ID` (optional): the Drive folder photos should go into. Open the folder in
      Drive and paste its link from the address bar. Without it, photos go into a new
      **South-View Gallery Photos** folder next to the Sheet.
@@ -70,13 +73,34 @@ owns the gallery. If that account is deleted, the gallery stops working.
    **Who has access: Anyone**, then **Deploy**. Copy the web app URL (it ends in `/exec`).
 6. Open that URL in a browser. You should see `{"ok":true,"photos":[],"burialDayPhotos":[]}`.
 7. For local development, copy `.env.example` to `.env` and paste the URL into
-   `VITE_APPS_SCRIPT_URL`.
+   `VITE_APPS_SCRIPT_URL`, and the OAuth client ID from the Google Sign-In setup below
+   into `VITE_GOOGLE_CLIENT_ID`.
 8. For the live site, open the GitHub repo's **Settings → Secrets and variables →
    Actions → Variables** tab, add a variable named `APPS_SCRIPT_URL` with the URL, then
    push to `main` or re-run the Deploy workflow.
 
-The web app URL isn't a secret, since it ends up in the public site. The staff password
-is, which is why it lives in the script and never in `.env`.
+The web app URL isn't a secret, since it ends up in the public site. Staff access isn't
+either — it's controlled by the STAFF_EMAILS allowlist in the script, not by anything
+in `.env` or the frontend.
+
+### Setting up Google Sign-In
+
+Staff sign in with their Google account instead of a password, checked against the
+STAFF_EMAILS allowlist. This needs an OAuth client ID from South-View's own Google
+account (same account that owns the Sheet):
+
+1. Go to the [Google Cloud Console credentials page](https://console.cloud.google.com/apis/credentials),
+   create a project if you don't have one already, then **Create Credentials → OAuth
+   client ID**.
+2. Choose **Web application**. Under **Authorized JavaScript origins**, add
+   `http://localhost:5173` (for local development) and the live site's origin, for
+   example `https://svc-handoff.github.io`. No redirect URI is needed.
+3. Copy the client ID (it ends in `.apps.googleusercontent.com`). Paste it into the
+   script's `GOOGLE_CLIENT_ID` property (step 3 above), your local `.env`'s
+   `VITE_GOOGLE_CLIENT_ID`, and the GitHub repo's `GOOGLE_CLIENT_ID` variable (alongside
+   `APPS_SCRIPT_URL` in step 8).
+4. Add each staff member's Google account to `STAFF_EMAILS`, comma-separated. There's no
+   separate sign-up — being on that list is what makes an account "staff".
 
 The URL also decides which Google account receives the photos: the one that deployed
 the script. To use a different account, repeat steps 1–5 from that account and swap in
@@ -118,7 +142,9 @@ account while the live site uses South-View's.
 - Don't rename the **ID**, **Status**, **File ID** or **Shown until** columns. Other
   columns can be reordered, and you can add your own. In the **Events** tab, don't change
   an event's **ID**: that's how photos stay linked to it.
-- To change the staff password, edit the script property. It takes effect right away.
+- To add or remove a staff member, edit the `STAFF_EMAILS` script property. It takes
+  effect right away; a removed account is signed out the next time it tries to do
+  something.
 - To send new photos to a different folder, change `FOLDER_ID` and run `setup` again to
   check it. Photos already uploaded keep showing in the gallery, even if you move them
   between folders, because the Sheet tracks each photo by its file ID.
@@ -210,8 +236,9 @@ research: split "is this appropriate?" into specific, checkable rules.
   using another device starts fresh from the sample photos. Burial photos use the
   simulated check in place of Gemini, and come down at midnight in the browser's time
   zone.
-- The demo staff PIN is a gate, not security. With the Google Sheet connected, the staff
-  password is checked by the script, and 10 wrong tries lock the Staff page for 15 minutes.
+- In demo mode, the Staff page has no real sign-in. With the Google Sheet connected,
+  staff sign in with Google and are checked against the STAFF_EMAILS allowlist, and 10
+  failed sign-ins lock the Staff page for 15 minutes.
 - Sample photos in `public/seed/` are from southviewpreservation.com (Historic
   South-View Preservation Foundation), used for this class prototype.
 

@@ -8,7 +8,6 @@ import { DEFAULT_EVENTS, cleanDetails, cleanEventName, entryId, isShownToday } f
 const db = createStore('south-view-gallery', 'submissions')
 const SEEDED_KEY = '__seeded'
 const EVENTS_KEY = '__events'
-const DEMO_PIN = '1886'
 const UNLOCK_KEY = 'south-view-staff-unlocked'
 
 async function ensureSeeded() {
@@ -89,8 +88,9 @@ export async function resetDemo() {
   await ensureSeeded()
 }
 
-export async function unlockStaff(pin) {
-  if (pin !== DEMO_PIN) return false
+// Demo mode has no backend to check a signed-in Google account against, so there's
+// nothing to verify here, same as the PIN this replaced ("not real security").
+export async function unlockStaff() {
   sessionStorage.setItem(UNLOCK_KEY, 'yes')
   return true
 }

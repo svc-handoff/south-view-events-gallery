@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   addEvent,
@@ -29,51 +29,70 @@ export default function Staff() {
     lockStaff()
     setUnlocked(false)
   }, [])
-  if (!unlocked) return <PinGate onUnlock={() => setUnlocked(true)} />
+  if (!unlocked) return <GoogleGate onUnlock={() => setUnlocked(true)} />
   return <ReviewQueue onLocked={lock} />
 }
 
-function PinGate({ onUnlock }) {
-  const [pin, setPin] = useState('')
+// Live mode signs staff in with their Google account, checked against the STAFF_EMAILS
+// allowlist on the script. Demo mode has no backend to check against, so it skips
+// straight through with one click, the same "not real security" spirit as the PIN it replaced.
+function GoogleGate({ onUnlock }) {
   const [message, setMessage] = useState(null)
   const [checking, setChecking] = useState(false)
+  const buttonRef = useRef(null)
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setChecking(true)
-    try {
-      if (await unlockStaff(pin)) return onUnlock()
-      setMessage(isDemo ? "That PIN didn't match." : "That password didn't match.")
-    } catch (err) {
-      setMessage(err.code ? err.message : "Couldn't reach the server. Check your connection and try again.")
+  const trySignIn = useCallback(
+    async (credential) => {
+      setChecking(true)
+      try {
+        if (await unlockStaff(credential)) return onUnlock()
+        setMessage("That Google account isn't on the staff list.")
+      } catch (err) {
+        setMessage(err.code ? err.message : "Couldn't reach the server. Check your connection and try again.")
+      }
+      setChecking(false)
+    },
+    [onUnlock],
+  )
+
+  useEffect(() => {
+    if (isDemo) return
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+    if (!clientId) {
+      setMessage('Google sign-in is not configured yet (missing VITE_GOOGLE_CLIENT_ID).')
+      return
     }
-    setPin('')
-    setChecking(false)
-  }
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.onload = () => {
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: ({ credential }) => trySignIn(credential),
+      })
+      if (buttonRef.current) window.google.accounts.id.renderButton(buttonRef.current, { theme: 'outline', size: 'large' })
+    }
+    document.body.appendChild(script)
+    return () => script.remove()
+  }, [trySignIn])
 
   return (
     <section className="section narrow center">
       <h1>Staff Review</h1>
       <p className="lead">Only South-View staff can approve photos for the public gallery.</p>
-      <form className="pin-form" onSubmit={handleSubmit}>
-        <input
-          type="password"
-          inputMode={isDemo ? 'numeric' : undefined}
-          autoComplete="off"
-          placeholder={isDemo ? 'Staff PIN' : 'Staff password'}
-          value={pin}
-          onChange={(e) => {
-            setPin(e.target.value)
-            setMessage(null)
-          }}
-          autoFocus
-        />
-        <button className="button" type="submit" disabled={checking}>
-          {checking ? 'Checking…' : 'Enter'}
+      {isDemo ? (
+        <button className="button" onClick={() => trySignIn('demo')} disabled={checking}>
+          {checking ? 'Loading…' : 'Continue as staff (demo)'}
         </button>
-      </form>
+      ) : (
+        <div ref={buttonRef} className="google-signin-button" />
+      )}
       {message && <p className="error">{message}</p>}
-      {isDemo && <p className="hint">Demo PIN: 1886, the year South-View was founded. Not real security.</p>}
+      {isDemo && (
+        <p className="hint">
+          Demo mode skips sign-in — everything here only lives in this browser. On the live site, staff sign in with Google.
+        </p>
+      )}
     </section>
   )
 }
@@ -86,7 +105,7 @@ function ReviewQueue({ onLocked }) {
 
   const { eventName, entry, activeEvents, activeBurials, setEvents } = useEvents()
   const handleError = useCallback(
-    (err) => (err.code === 'bad_password' ? onLocked() : setError(err.message || 'Something went wrong.')),
+    (err) => (err.code === 'unauthorized' ? onLocked() : setError(err.message || 'Something went wrong.')),
     [onLocked],
   )
 
@@ -109,7 +128,7 @@ function ReviewQueue({ onLocked }) {
             if (!aiCheck) continue
             setItems((all) => all.map((i) => (i.id === item.id ? { ...i, aiCheck, focus: aiCheck.focus || i.focus } : i)))
           } catch (err) {
-            if (err.code === 'bad_password') {
+            if (err.code === 'unauthorized') {
               handleError(err)
               return
             }
@@ -253,7 +272,7 @@ function EventManager({ type, items, onError }) {
       setEvents(await change())
       return true
     } catch (err) {
-      if (err.code === 'bad_password') onError(err)
+      if (err.code === 'unauthorized') onError(err)
       else setMessage(err.message || 'Something went wrong.')
       return false
     } finally {
