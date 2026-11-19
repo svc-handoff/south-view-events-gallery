@@ -6,7 +6,38 @@ import { useEvents } from '../events'
 const submitUrl = (slug) =>
   `${window.location.origin}${import.meta.env.BASE_URL}#/submit?event=${slug}`
 
-const qrImage = (slug, width) => QRCode.toDataURL(submitUrl(slug), { width, margin: 1, color: { dark: '#1A1D1A' } })
+// The HSVPF seal from southviewpreservation.com, logged in the asset ledger.
+let logo = null
+const loadLogo = () => {
+  logo ??= new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = `${import.meta.env.BASE_URL}hsvpf-seal.png`
+  })
+  return logo
+}
+
+// A QR code with the South-View seal in the middle. Error correction H lets a code still
+// scan with about 30% of it covered, and the seal covers well under that.
+async function qrImage(slug, width) {
+  const canvas = document.createElement('canvas')
+  await QRCode.toCanvas(canvas, submitUrl(slug), { width, margin: 1, errorCorrectionLevel: 'H', color: { dark: '#1A1D1A' } })
+  try {
+    const img = await loadLogo()
+    const ctx = canvas.getContext('2d')
+    const size = canvas.width * 0.24
+    const center = canvas.width / 2
+    ctx.fillStyle = '#fff'
+    ctx.beginPath()
+    ctx.arc(center, center, size * 0.56, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.drawImage(img, center - size / 2, center - size / 2, size, size)
+  } catch {
+    // Without the seal, the plain code still works.
+  }
+  return canvas.toDataURL('image/png')
+}
 
 // The QR Codes tab on the Staff page. Its choices live in the URL (#/staff?tab=qr&event=…),
 // so the QR code buttons on the Events and Burials tabs can link straight to a sign.
